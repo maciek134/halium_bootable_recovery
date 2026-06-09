@@ -207,6 +207,7 @@ cc_binary {
         "lvm",
         "lvm-fs-migrator",
         "lvm-super-migrator",
+        "migrate-to-lvm",
         "replace-system",
         "resize2fs.recovery",
         "setup-fake-cache",

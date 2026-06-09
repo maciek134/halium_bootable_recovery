@@ -1,0 +1,41 @@
+#!/system/bin/sh
+exec > /dev/kmsg 2>&1
+
+use_lvm=$(getprop ro.systemimage.use_lvm)
+case "$use_lvm" in
+    true|1) ;;
+    *) echo "migrate-lvm: not requested (ro.systemimage.use_lvm=${use_lvm}), skipping"; exit 0 ;;
+esac
+
+USERDATA_PART=$(grep "/data " /system/etc/recovery.fstab | cut -d ' ' -f1)
+[ -z "$USERDATA_PART" ] && USERDATA_PART=/dev/block/by-name/userdata
+
+# Wait for the ueventd to create symlink to the block device node
+RETRY_COUNTER=0
+while [ ! -e "$USERDATA_PART" ] && [ $(( RETRY_COUNTER += 1 )) -le 20 ]; do
+    sleep 0.1
+done
+if [ ! -e "$USERDATA_PART" ]; then
+    echo "migrate-lvm: $USERDATA_PART did not appear after 2s, skipping"
+    exit 1
+fi
+
+VG_NAME=ubports
+LV_NAME=userdata
+RESERVE=$(getprop ro.systemimage.lvm_on_userdata_reserve_mb)
+[ -z "$RESERVE" ] && RESERVE=0
+
+# Detect whether userdata is already an LVM PV by reading the LABELONE magic
+# at byte offset 512.  dd is always available; no blkid dependency needed.
+if dd if="$USERDATA_PART" bs=1 skip=512 count=8 2>/dev/null | grep -q "LABELONE"; then
+    echo "migrate-lvm: $USERDATA_PART is already an LVM PV, activating VG"
+    vgchange -ay "$VG_NAME" >/dev/null 2>&1 || true
+    exit 0
+fi
+
+echo "migrate-lvm: migrating $USERDATA_PART to LVM (vg=$VG_NAME lv=$LV_NAME reserve=${RESERVE}MB)"
+/system/bin/lvm-fs-migrator \
+    --device="$USERDATA_PART" \
+    --vg-name="$VG_NAME" \
+    --lv-name="$LV_NAME" \
+    --reserve="$RESERVE"

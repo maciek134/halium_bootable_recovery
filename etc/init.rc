@@ -10,6 +10,11 @@ service setup_fake_cache /system/bin/setup-fake-cache
     oneshot
     user root
 
+service lvm-migration /system/bin/migrate-to-lvm
+    disabled
+    oneshot
+    user root
+
 on early-init
     # Set the security context of /postinstall if present.
     restorecon /postinstall
@@ -21,6 +26,9 @@ on early-init
     start ueventd
 
     start setup_usb
+
+    # Perform LVM migration if ro.systemimage.use_lvm=1
+    start lvm-migration
 
     # Set property to allow installers to identify recovery
     setprop ro.ubuntu.recovery true
