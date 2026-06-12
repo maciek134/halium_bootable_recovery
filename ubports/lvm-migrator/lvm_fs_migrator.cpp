@@ -159,6 +159,9 @@ int main(int argc, char* argv[]) {
     std::cout << "Checking filesystem on " << device_path << "...\n";
     RunCommand({"e2fsck", "-f", "-y", device_path});
 
+    // Workaround for resize2fs in case of clock inconsistency
+    FixupFsCheckTime(device_path);
+
     std::cout << "Resizing filesystem to " << filesystem_size_mb << " MB...\n";
     if (RunCommand({"resize2fs", device_path,
                     std::to_string(filesystem_size_mb) + "M"}) != 0) {

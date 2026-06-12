@@ -23,6 +23,7 @@
 
 #include <cstdint>
 #include <cstring>
+#include <ctime>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -87,6 +88,48 @@ static inline uint64_t GetDeviceSize(const std::string& device_path) {
 // Check whether a volume group with the given name already exists.
 static inline bool VolumeGroupExists(const std::string& vg_name) {
     return RunCommand({"vgs", "--noheadings", vg_name}) == 0;
+}
+
+// The ext2/3/4 superblock begins 1024 bytes into the partition.
+// We only need a few little-endian fields from it:
+//   s_mtime (last mount time) at SB + 0x2C, s_wtime (last write time) at + 0x30,
+//   s_magic (0xEF53)          at SB + 0x38.
+static constexpr uint64_t kExt4SuperblockOffset = 1024;
+
+// Read the more recent of the filesystem's last-mount / last-write times as a
+// Unix timestamp. Returns 0 if the device can't be read or isn't an ext fs.
+static inline time_t GetFsLastActivityTime(const std::string& device_path) {
+    int fd = open(device_path.c_str(), O_RDONLY);
+    if (fd < 0) return 0;
+    uint8_t sb[64];
+    ssize_t n = pread(fd, sb, sizeof(sb), kExt4SuperblockOffset);
+    close(fd);
+    if (n != (ssize_t)sizeof(sb)) return 0;
+
+    auto le32 = [](const uint8_t* p) -> uint32_t {
+        return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) |
+               ((uint32_t)p[3] << 24);
+    };
+    uint16_t magic = (uint16_t)sb[0x38] | ((uint16_t)sb[0x39] << 8);
+    if (magic != 0xEF53) return 0;  // not an ext2/3/4 filesystem
+
+    uint32_t mtime = le32(&sb[0x2C]);
+    uint32_t wtime = le32(&sb[0x30]);
+    return (time_t)(mtime > wtime ? mtime : wtime);
+}
+
+// Workaround for resize2fs in case of clock inconsistency
+static inline void FixupFsCheckTime(const std::string& device_path) {
+    time_t fs_time = GetFsLastActivityTime(device_path);
+    if (fs_time <= 0) return;
+    if (fs_time <= time(nullptr)) return;  // clock seems correct
+
+    // tune2fs -T parses "YYYYMMDDHHMMSS" in local time
+    struct tm tm;
+    char buf[16];
+    if (!localtime_r(&fs_time, &tm)) return;
+    if (strftime(buf, sizeof(buf), "%Y%m%d%H%M%S", &tm) == 0) return;
+    RunCommand({"tune2fs", "-T", buf, device_path});
 }
 
 // Run pvcreate + vgcfgrestore + vgchange to bring up the volume group.
