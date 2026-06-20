@@ -508,23 +508,13 @@ void ScreenRecoveryUI::draw_background_locked() {
       gr_color(66, 66, 66, 255);
       gr_fill(0, 0, gr_fb_width(), gr_fb_height());
     }
-    if (max_stage != -1) {
-      int stage_height = gr_get_height(stage_marker_empty_.get());
-      int stage_width = gr_get_width(stage_marker_empty_.get());
-      int x = (ScreenWidth() - max_stage * gr_get_width(stage_marker_empty_.get())) / 2;
-      int y = ScreenHeight() - stage_height - margin_height_;
-      for (int i = 0; i < max_stage; ++i) {
-        const auto& stage_surface = (i < stage) ? stage_marker_fill_ : stage_marker_empty_;
-        DrawSurface(stage_surface.get(), 0, 0, stage_width, stage_height, x, y);
-        x += stage_width;
-      }
-    }
 
-    const auto& text_surface = GetCurrentText();
-    int text_x = (ScreenWidth() - gr_get_width(text_surface)) / 2;
-    int text_y = GetTextBaseline();
-    gr_color(255, 255, 255, 255);
-    DrawTextIcon(text_x, text_y, text_surface);
+
+    // const auto& text_surface = GetCurrentText();
+    // int text_x = (ScreenWidth() - gr_get_width(text_surface)) / 2;
+    // int text_y = GetTextBaseline();
+    // gr_color(255, 255, 255, 255);
+    // DrawTextIcon(text_x, text_y, text_surface);
   }
 }
 
@@ -578,6 +568,30 @@ void ScreenRecoveryUI::draw_foreground_locked() {
       }
     }
   }
+
+    if (max_stage != -1) {
+      int stage_height = gr_get_height(stage_marker_empty_.get());
+      int stage_width = gr_get_width(stage_marker_empty_.get());
+      int x = (ScreenWidth() - max_stage * gr_get_width(stage_marker_empty_.get())) / 2;
+      int y = ScreenHeight() - stage_height - margin_height_;
+      for (int i = 0; i < max_stage; ++i) {
+        const auto& stage_surface = (i < stage) ? stage_marker_fill_ : stage_marker_empty_;
+        DrawSurface(stage_surface.get(), 0, 0, stage_width, stage_height, x, y);
+        x += stage_width;
+      }
+    }
+
+  if (!progress_text_.empty()) {
+    int text_y = GetProgressBaseline() - char_height_ * 2;
+  int text_w = gr_measure(gr_sys_font(), progress_text_.c_str());
+      // DrawTextLine((ScreenWidth() - text_w) / 2, GetProgressBaseline() + 30, progress_text_);
+  gr_color(66, 66, 66, 255);
+    gr_fill(0, text_y - 5, gr_fb_width(), text_y + char_height_ + 10);
+
+      // SetColor(UIElement::MENU);
+      gr_color(255, 255, 255, 255);
+    gr_text(gr_sys_font(), (ScreenWidth() - text_w) / 2, text_y, progress_text_.c_str(), false);
+    }
 }
 
 /* recovery dark:  #7C4DFF
@@ -1347,6 +1361,7 @@ void ScreenRecoveryUI::SetStage(int current, int max) {
   std::lock_guard<std::mutex> lg(updateMutex);
   stage = current;
   max_stage = max;
+  update_progress_locked();
 }
 
 void ScreenRecoveryUI::PrintV(const char* fmt, bool copy_to_stdout, va_list ap) {
@@ -1840,4 +1855,12 @@ int ScreenRecoveryUI::SetSwCallback(int code, int value) {
   Redraw();
 
   return 0;
+}
+
+void ScreenRecoveryUI::SetProgressText(const std::string& text) {
+    std::lock_guard<std::mutex> lg(updateMutex);
+  if (progress_text_ != text) {
+    progress_text_ = text;
+  update_progress_locked();
+  }
 }

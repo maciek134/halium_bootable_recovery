@@ -38,6 +38,7 @@ class StubRecoveryUI : public RecoveryUI {
   void SetProgressType(ProgressType /* type */) override {}
   void ShowProgress(float /* portion */, float /* seconds */) override {}
   void SetProgress(float /* fraction */) override {}
+  void SetProgressText(const std::string& /* text */) override {}
 
   void SetStage(int /* current */, int /* max */) override {}
 

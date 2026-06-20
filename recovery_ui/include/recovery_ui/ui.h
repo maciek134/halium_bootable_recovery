@@ -179,6 +179,8 @@ class RecoveryUI {
   // ShowProgress).
   virtual void SetProgress(float fraction) = 0;
 
+  virtual void SetProgressText(const std::string& text) = 0;
+
   // --- text log ---
 
   virtual void ShowText(bool visible) = 0;

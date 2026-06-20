@@ -16,6 +16,8 @@
  * Authored by: Marius Gripsgard <mariogrip@ubports.com>
  */
 #include <unistd.h>
+#include <stdlib.h>
+#include <stdio.h>
 
 #include <install/install.h>
 #include <recovery_utils/roots.h>
@@ -63,19 +65,47 @@ InstallResult do_ubuntu_update(RecoveryUI *ui){
 
     ui->Print("Executing Ubuntu update script...\n");
     ui->SetBackground(RecoveryUI::INSTALLING_UPDATE);
-    ui->SetProgressType(RecoveryUI::INDETERMINATE);
 
     char tmp[PATH_MAX];
-    sprintf(tmp, "%s %s &> /cache/ubuntu_updater.log", UBUNTU_UPDATE_SCRIPT, UBUNTU_COMMAND_FILE);
-    result = system(tmp);
+    sprintf(tmp, "%s %s 2>&1 > /cache/ubuntu_updater.log", UBUNTU_UPDATE_SCRIPT, UBUNTU_COMMAND_FILE);
+    char buf[128];
+    FILE *pout = popen(tmp, "r");
+    if (!pout) {
+        show_installation_error(ui, 1);
+        return INSTALL_ERROR;
+    }
+    while (fgets(buf, 128, pout) != NULL) {
+        float progress;
+        int stage, max_stage;
+        char title[128];
+        if (sscanf(buf, "progress:%f", &progress)) {
+            ui->ShowProgress(progress, 2.0);
+        } else if (sscanf(buf, "title:%[^\n]", title)) {
+            ui->SetProgressText(title);
+        } else if (sscanf(buf, "stage:%d:%d", &stage, &max_stage)) {
+            ui->SetStage(stage, max_stage);
+        }
+    }
+    ui->SetProgressText("");
+    ui->SetStage(-1, -1);
+    result = fclose(pout);
     if (result != 0) {
         show_installation_error(ui, result);
         return INSTALL_ERROR;
     }
 
-    ui->SetEnableReboot(true);
+    for (int i = 5; i > 0; i--) {
+        char rtxt[50];
+        sprintf(rtxt, "Rebooting in %d...", i);
+        ui->SetProgressText(rtxt);
+        sleep(1);
+    }
+    ui->SetProgressText("");
+
+    // ui->SetEnableReboot(true);
     ui->Print("\n");
-    return INSTALL_SUCCESS;
+    return INSTALL_NONE;
+    // return INSTALL_SUCCESS;
 }
 
 int do_test_update(RecoveryUI *ui){

@@ -298,6 +298,7 @@ class ScreenRecoveryUI : public RecoveryUI, public DrawInterface {
   void SetProgressType(ProgressType type) override;
   void ShowProgress(float portion, float seconds) override;
   void SetProgress(float fraction) override;
+  void SetProgressText(const std::string& text) override;
 
   void SetStage(int current, int max) override;
 
@@ -535,6 +536,8 @@ class ScreenRecoveryUI : public RecoveryUI, public DrawInterface {
   bool is_graphics_available;
 
   bool is_battery_less;
+
+  std::string progress_text_;
 
  private:
   void SetLocale(const std::string&);
